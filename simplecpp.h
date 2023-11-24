@@ -250,9 +250,6 @@ namespace simplecpp {
             other.frontToken = other.backToken = NULL;
         }
 
-        /** sizeof(T) */
-        std::map<std::string, std::size_t> sizeOfType;
-
     private:
         void combineOperators();
 

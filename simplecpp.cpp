@@ -235,7 +235,6 @@ simplecpp::TokenList &simplecpp::TokenList::operator=(const TokenList &other)
         clear();
         for (const Token *tok = other.cfront(); tok; tok = tok->next)
             push_back(new Token(*tok));
-        sizeOfType = other.sizeOfType;
     }
     return *this;
 }
@@ -249,7 +248,6 @@ simplecpp::TokenList &simplecpp::TokenList::operator=(TokenList &&other)
         other.backToken = NULL;
         frontToken = other.frontToken;
         other.frontToken = NULL;
-        sizeOfType = std::move(other.sizeOfType);
     }
     return *this;
 }
@@ -263,7 +261,6 @@ void simplecpp::TokenList::clear()
         delete frontToken;
         frontToken = next;
     }
-    sizeOfType.clear();
 }
 
 void simplecpp::TokenList::push_back(Token *tok)
@@ -2229,53 +2226,6 @@ namespace simplecpp {
     }
 }
 
-/** Evaluate sizeof(type) */
-static void simplifySizeof(simplecpp::TokenList &expr, const std::map<std::string, std::size_t> &sizeOfType)
-{
-    for (simplecpp::Token *tok = expr.front(); tok; tok = tok->next) {
-        if (tok->str() != "sizeof")
-            continue;
-        simplecpp::Token *tok1 = tok->next;
-        if (!tok1) {
-            throw std::runtime_error("missing sizeof argument");
-        }
-        simplecpp::Token *tok2 = tok1->next;
-        if (!tok2) {
-            throw std::runtime_error("missing sizeof argument");
-        }
-        if (tok1->op == '(') {
-            tok1 = tok1->next;
-            while (tok2->op != ')') {
-                tok2 = tok2->next;
-                if (!tok2) {
-                    throw std::runtime_error("invalid sizeof expression");
-                }
-            }
-        }
-
-        std::string type;
-        for (simplecpp::Token *typeToken = tok1; typeToken != tok2; typeToken = typeToken->next) {
-            if ((typeToken->str() == "unsigned" || typeToken->str() == "signed") && typeToken->next->name)
-                continue;
-            if (typeToken->str() == "*" && type.find('*') != std::string::npos)
-                continue;
-            if (!type.empty())
-                type += ' ';
-            type += typeToken->str();
-        }
-
-        const std::map<std::string, std::size_t>::const_iterator it = sizeOfType.find(type);
-        if (it != sizeOfType.end())
-            tok->setstr(toString(it->second));
-        else
-            continue;
-
-        tok2 = tok2->next;
-        while (tok->next != tok2)
-            expr.deleteToken(tok->next);
-    }
-}
-
 static const char * const altopData[] = {"and","or","bitand","bitor","compl","not","not_eq","xor"};
 static const std::set<std::string> altop(&altopData[0], &altopData[8]);
 static void simplifyName(simplecpp::TokenList &expr)
@@ -2309,9 +2259,8 @@ static void simplifyNumbers(simplecpp::TokenList &expr)
     }
 }
 
-static long long evaluate(simplecpp::TokenList &expr, const std::map<std::string, std::size_t> &sizeOfType)
+static long long evaluate(simplecpp::TokenList &expr)
 {
-    simplifySizeof(expr, sizeOfType);
     simplifyName(expr);
     simplifyNumbers(expr);
     expr.constFold();
@@ -2558,28 +2507,6 @@ static bool preprocessToken(simplecpp::TokenList &output, const simplecpp::Token
 
 void simplecpp::preprocess(simplecpp::TokenList &output, const simplecpp::TokenList &rawtokens, std::vector<std::string> &files, std::map<std::string, simplecpp::TokenList *> &filedata, const simplecpp::DUI &dui, simplecpp::OutputList *outputList, std::list<simplecpp::MacroUsage> *macroUsage)
 {
-    std::map<std::string, std::size_t> sizeOfType(rawtokens.sizeOfType);
-    sizeOfType.insert(std::make_pair("char", sizeof(char)));
-    sizeOfType.insert(std::make_pair("short", sizeof(short)));
-    sizeOfType.insert(std::make_pair("short int", sizeOfType["short"]));
-    sizeOfType.insert(std::make_pair("int", sizeof(int)));
-    sizeOfType.insert(std::make_pair("long", sizeof(long)));
-    sizeOfType.insert(std::make_pair("long int", sizeOfType["long"]));
-    sizeOfType.insert(std::make_pair("long long", sizeof(long long)));
-    sizeOfType.insert(std::make_pair("float", sizeof(float)));
-    sizeOfType.insert(std::make_pair("double", sizeof(double)));
-    sizeOfType.insert(std::make_pair("long double", sizeof(long double)));
-    sizeOfType.insert(std::make_pair("char *", sizeof(char *)));
-    sizeOfType.insert(std::make_pair("short *", sizeof(short *)));
-    sizeOfType.insert(std::make_pair("short int *", sizeOfType["short *"]));
-    sizeOfType.insert(std::make_pair("int *", sizeof(int *)));
-    sizeOfType.insert(std::make_pair("long *", sizeof(long *)));
-    sizeOfType.insert(std::make_pair("long int *", sizeOfType["long *"]));
-    sizeOfType.insert(std::make_pair("long long *", sizeof(long long *)));
-    sizeOfType.insert(std::make_pair("float *", sizeof(float *)));
-    sizeOfType.insert(std::make_pair("double *", sizeof(double *)));
-    sizeOfType.insert(std::make_pair("long double *", sizeof(long double *)));
-
     std::map<TokenString, Macro> macros;
     for (std::list<std::string>::const_iterator it = dui.defines.begin(); it != dui.defines.end(); ++it) {
         const std::string &macrostr = *it;
@@ -2862,7 +2789,7 @@ void simplecpp::preprocess(simplecpp::TokenList &output, const simplecpp::TokenL
                         tok = tmp->previous;
                     }
                     try {
-                        conditionIsTrue = (evaluate(expr, sizeOfType) != 0);
+                        conditionIsTrue = (evaluate(expr) != 0);
                     } catch (const std::exception &e) {
                         if (outputList) {
                             Output out(rawtok->location.files);
