@@ -2463,7 +2463,7 @@ std::map<std::string, simplecpp::TokenList*> simplecpp::load(const simplecpp::To
 
     // -include files
     for (std::list<std::string>::const_iterator it = dui.includes.begin(); it != dui.includes.end(); ++it) {
-        const std::string &filename = realFilename(*it);
+        const std::string filename = realFilename(*it);
 
         if (ret.find(filename) != ret.end())
             continue;
@@ -2611,7 +2611,7 @@ void simplecpp::preprocess(simplecpp::TokenList &output, const simplecpp::TokenL
 
     includetokenstack.push(rawtokens.cfront());
     for (std::list<std::string>::const_iterator it = dui.includes.begin(); it != dui.includes.end(); ++it) {
-        const std::map<std::string, TokenList*>::const_iterator f = filedata.find(*it);
+        const std::map<std::string, TokenList*>::const_iterator f = filedata.find(realFilename(*it));
         if (f != filedata.end())
             includetokenstack.push(f->second->cfront());
     }
