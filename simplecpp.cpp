@@ -301,6 +301,8 @@ std::string simplecpp::TokenList::stringify() const
         loc.adjust(tok->str());
     }
 
+    // Ensure that last line is terminated
+    ret << '\n';
     return ret.str();
 }
 
