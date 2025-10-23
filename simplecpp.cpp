@@ -2550,18 +2550,18 @@ void simplecpp::preprocess(simplecpp::TokenList &output, const simplecpp::TokenL
             rawtok = includetokenstack.top();
             includetokenstack.pop();
             if (rawtok && rawtok != rawtokens.cfront ()) {
-              // Add linemarker
-              // https://gcc.gnu.org/onlinedocs/cpp/Preprocessor-Output.html
-              Location loc = rawtok->location;
-              --loc.line;
-              loc.col = 1;
-              output.push_back(new Token("#", loc));
-              loc.col += 2;
-              output.push_back(new Token (toString (loc.line + 1), loc));
-              loc.col += (unsigned int)output.back()->str().length() + 1;
-              output.push_back(new Token("\"" + loc.file() + "\"", loc));
-              loc.col += (unsigned int)output.back()->str().length() + 1;
-              output.push_back(new Token("2", loc));
+                // Add linemarker
+                // https://gcc.gnu.org/onlinedocs/cpp/Preprocessor-Output.html
+                Location loc = rawtok->location;
+                --loc.line;
+                loc.col = 1;
+                output.push_back(new Token("#", loc));
+                loc.col += 2;
+                output.push_back(new Token (toString (loc.line + 1), loc));
+                loc.col += (unsigned int)output.back()->str().length() + 1;
+                output.push_back(new Token("\"" + loc.file() + "\"", loc));
+                loc.col += (unsigned int)output.back()->str().length() + 1;
+                output.push_back(new Token("2", loc));
             }
             continue;
         }
@@ -2830,8 +2830,16 @@ void simplecpp::preprocess(simplecpp::TokenList &output, const simplecpp::TokenL
                     if (sameline(rawtok, tok))
                         macros.erase(tok->str());
                 }
-            } else if (ifstates.top() == TRUE && rawtok->str() == PRAGMA && rawtok->next && rawtok->next->str() == ONCE && sameline(rawtok,rawtok->next)) {
-                pragmaOnce.insert(rawtok->location.file());
+            } else if (ifstates.top() == TRUE && rawtok->str() == PRAGMA) {
+                if (rawtok->next && rawtok->next->str() == ONCE && sameline(rawtok,rawtok->next))
+                    pragmaOnce.insert(rawtok->location.file());
+                else {
+                    // Emit unknown #pragma directive to the output
+                    output.push_back(new Token("#pragma", rawtok->previous->location));
+                    for (const Token *tok = rawtok->next; sameline(rawtok, tok); tok = tok->next) {
+                        output.push_back(new Token(*tok));
+                    }
+                }
             }
             rawtok = gotoNextLine(rawtok);
             continue;
